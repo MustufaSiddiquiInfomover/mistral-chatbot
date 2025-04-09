@@ -12,11 +12,7 @@ class ChatManager:
         self.conversation_history = []
 
     def initialize_context(self):
-        """
-        Get all profiles data from the database
-        Create a readable string from each row and concatenate into a single context
-        Add a new object to the conversation_history
-        """
+
         try:
             connection_string = os.getenv("MONGODB_URI", "mongodb+srv://hiretalent-dev:Yulwbmn87x92EQ0U@hiretalent.doscksq.mongodb.net/app-dev")
             client = MongoClient(connection_string)
