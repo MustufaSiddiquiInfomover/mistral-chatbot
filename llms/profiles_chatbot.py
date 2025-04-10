@@ -14,7 +14,7 @@ class ChatManager:
     def initialize_context(self):
 
         try:
-            connection_string = os.getenv("MONGODB_URI", "mongodb+srv://hiretalent-dev:Yulwbmn87x92EQ0U@hiretalent.doscksq.mongodb.net/app-dev")
+            connection_string = os.getenv("MONGODB_URI")
             client = MongoClient(connection_string)
 
             # Test connection
