@@ -5,9 +5,44 @@ import time
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_mistralai import ChatMistralAI, MistralAIEmbeddings
-from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+
+# Custom InMemoryVectorStore class with batch embedding
+class InMemoryVectorStore:
+    def __init__(self, embeddings):
+        self.embeddings = embeddings
+        self.store = {}  # Dictionary to hold doc_id: (content, embedding) pairs
+        self.next_id = 0
+
+    def add_documents(self, documents):
+        ids = []
+        contents = [doc.page_content for doc in documents]
+        # Batch embed all documents
+        embeddings = self.embeddings.embed_documents(contents)
+        for i, (doc, embedding) in enumerate(zip(documents, embeddings)):
+            self.store[self.next_id] = {"content": doc.page_content, "embedding": embedding, "metadata": doc.metadata}
+            ids.append(self.next_id)
+            self.next_id += 1
+        return ids
+
+    def similarity_search(self, query, k=4):
+        query_embedding = self.embeddings.embed_query(query)
+        # Simple cosine similarity (approximation)
+        scores = []
+        for doc_id, data in self.store.items():
+            score = sum(a * b for a, b in zip(query_embedding, data["embedding"]))
+            scores.append((score, doc_id))
+        scores.sort(reverse=True)
+        top_k = scores[:k]
+        return [self._get_document(doc_id) for _, doc_id in top_k]
+
+    def _get_document(self, doc_id):
+        data = self.store.get(doc_id, {})
+        return type('Document', (), {
+            'page_content': data.get('content', ''),
+            'metadata': data.get('metadata', {})
+        })()
 
 def setup_semantic_search():
     print("Starting setup...", flush=True)
@@ -19,11 +54,9 @@ def setup_semantic_search():
     if not os.environ.get("MISTRAL_API_KEY"):
         print("Error: MISTRAL_API_KEY not found in .env file. Please set it.", flush=True)
         exit(1)
-    print("Mistral API key loaded from .env.", flush=True)
 
     # Optional: Check for Hugging Face token
     if not os.environ.get("HF_TOKEN"):
-        print("Warning: HF_TOKEN not found in .env file. Using dummy token, which may affect embedding performance.", flush=True)
         os.environ["HF_TOKEN"] = "dummy"
     else:
         print("HF token loaded from .env.", flush=True)
@@ -31,10 +64,8 @@ def setup_semantic_search():
     # Step 1: Load the PDF
     file_path = r"C:\Users\user.DESKTOP-OMQ89VA\Desktop\Nike-NPS-Combo_Form-10.pdf"
     try:
-        print("Loading PDF...", flush=True)
         loader = PyPDFLoader(file_path)
         docs = loader.load()
-        print(f"Loaded {len(docs)} pages from the PDF.", flush=True)
     except FileNotFoundError:
         print(f"Error: File not found at {file_path}. Please check the path.", flush=True)
         exit(1)
@@ -59,30 +90,28 @@ def setup_semantic_search():
         print("Embeddings initialized.", flush=True)
 
         # Test API key with a single embedding
-        print("Testing API key with a sample embedding...", flush=True)
         test_vector = embeddings.embed_query("This is a test sentence.")
-        print(f"API key test successful. Sample embedding: {test_vector[:5]}", flush=True)
 
         # Test embedding a single document chunk
-        print("Testing embedding of a single chunk...", flush=True)
         single_chunk = all_splits[0].page_content
         single_embedding = embeddings.embed_query(single_chunk)
-        print(f"Single chunk embedding successful. Embedding: {single_embedding[:5]}", flush=True)
+        assert len(test_vector) == len(single_embedding)  # Verify vector length
 
+        # Create and populate custom in-memory vector store with first 20 chunks
+        print("Creating in-memory vector store...", flush=True)
         vector_store = InMemoryVectorStore(embeddings)
-        print("Vector store created.", flush=True)
+        print("In-memory vector store created.", flush=True)
 
-        # Add just 1 document to test
-        print("Adding 1 document to vector store (testing)...", flush=True)
+        print("Adding first 20 documents to vector store for testing...", flush=True)
         start_time = time.time()
-        ids = vector_store.add_documents(documents=all_splits[:1])  # Test with 1 chunk
+        ids = vector_store.add_documents(all_splits[:20])  # Add only the first 20 chunks
         elapsed_time = time.time() - start_time
         print(f"Stored {len(ids)} chunks in the vector store. Took {elapsed_time:.2f} seconds.", flush=True)
 
-        # Uncomment to process all chunks once confirmed
+        # Commented out section for adding all documents
         # print("Adding all documents to vector store...", flush=True)
         # start_time = time.time()
-        # ids = vector_store.add_documents(documents=all_splits)
+        # ids = vector_store.add_documents(all_splits)
         # elapsed_time = time.time() - start_time
         # print(f"Stored {len(ids)} chunks in the vector store. Took {elapsed_time:.2f} seconds.", flush=True)
 
