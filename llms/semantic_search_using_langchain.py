@@ -63,13 +63,19 @@ def setup_semantic_search():
         test_vector = embeddings.embed_query("This is a test sentence.")
         print(f"API key test successful. Sample embedding: {test_vector[:5]}", flush=True)
 
+        # Test embedding a single document chunk
+        print("Testing embedding of a single chunk...", flush=True)
+        single_chunk = all_splits[0].page_content
+        single_embedding = embeddings.embed_query(single_chunk)
+        print(f"Single chunk embedding successful. Embedding: {single_embedding[:5]}", flush=True)
+
         vector_store = InMemoryVectorStore(embeddings)
         print("Vector store created.", flush=True)
 
-        # Add fewer documents first to test
-        print("Adding first 10 documents to vector store (testing)...", flush=True)
+        # Add just 1 document to test
+        print("Adding 1 document to vector store (testing)...", flush=True)
         start_time = time.time()
-        ids = vector_store.add_documents(documents=all_splits[:10])  # Test with 10 chunks
+        ids = vector_store.add_documents(documents=all_splits[:1])  # Test with 1 chunk
         elapsed_time = time.time() - start_time
         print(f"Stored {len(ids)} chunks in the vector store. Took {elapsed_time:.2f} seconds.", flush=True)
 
